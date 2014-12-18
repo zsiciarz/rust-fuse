@@ -24,7 +24,8 @@ use FileAttr;
 /// Generic reply trait
 pub trait Reply {
     /// Create a new reply for the given request
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> Self;
+    fn new<F> (unique: u64, sender: F) -> Self
+        where F: FnOnce(&[&[u8]]);
 }
 
 /// Serialize an arbitrary type to bytes (memory copy, useful for fuse_*_out types)
@@ -103,15 +104,16 @@ fn fuse_attr_from_attr (attr: &FileAttr) -> fuse_attr {
 ///
 /// Raw reply
 ///
-pub struct ReplyRaw<T> {
+pub struct ReplyRaw<T + 'a> {
     /// Unique id of the request to reply to
     unique: u64,
-    /// Proc to call for sending the reply
-    sender: Option<proc(&[&[u8]]):Send>,
+    /// A closure to call for sending the reply
+    sender: Option<FnOnce(&[&[u8]]) + 'a>,
 }
 
 impl<T> Reply for ReplyRaw<T> {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyRaw<T> {
+    fn new<F> (unique: u64, sender: F) -> ReplyRaw<T>
+            where F: FnOnce(&[&[u8]]) {
         ReplyRaw { unique: unique, sender: Some(sender) }
     }
 }
@@ -166,7 +168,8 @@ pub struct ReplyEmpty {
 }
 
 impl Reply for ReplyEmpty {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyEmpty {
+    fn new<F> (unique: u64, sender: F) -> ReplyEmpty
+            where F: FnOnce(&[&[u8]]) {
         ReplyEmpty { reply: Reply::new(unique, sender) }
     }
 }
@@ -191,7 +194,8 @@ pub struct ReplyData {
 }
 
 impl Reply for ReplyData {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyData {
+    fn new<F> (unique: u64, sender: F) -> ReplyData
+            where F: FnOnce(&[&[u8]]) {
         ReplyData { reply: Reply::new(unique, sender) }
     }
 }
@@ -216,7 +220,8 @@ pub struct ReplyEntry {
 }
 
 impl Reply for ReplyEntry {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyEntry {
+    fn new<F> (unique: u64, sender: F) -> ReplyEntry
+            where F: FnOnce(&[&[u8]]) {
         ReplyEntry { reply: Reply::new(unique, sender) }
     }
 }
@@ -249,7 +254,8 @@ pub struct ReplyAttr {
 }
 
 impl Reply for ReplyAttr {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyAttr {
+    fn new<F> (unique: u64, sender: F) -> ReplyAttr
+            where F: FnOnce(&[&[u8]]) {
         ReplyAttr { reply: Reply::new(unique, sender) }
     }
 }
@@ -281,7 +287,8 @@ pub struct ReplyXTimes {
 
 #[cfg(target_os = "macos")]
 impl Reply for ReplyXTimes {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyXTimes {
+    fn new<F> (unique: u64, sender: F) -> ReplyXTimes
+            where F: FnOnce(&[&[u8]]) {
         ReplyXTimes { reply: Reply::new(unique, sender) }
     }
 }
@@ -312,7 +319,8 @@ pub struct ReplyOpen {
 }
 
 impl Reply for ReplyOpen {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyOpen {
+    fn new<F> (unique: u64, sender: F) -> ReplyOpen
+            where F: FnOnce(&[&[u8]]) {
         ReplyOpen { reply: Reply::new(unique, sender) }
     }
 }
@@ -341,7 +349,8 @@ pub struct ReplyWrite {
 }
 
 impl Reply for ReplyWrite {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyWrite {
+    fn new<F> (unique: u64, sender: F) -> ReplyWrite
+            where F: FnOnce(&[&[u8]]) {
         ReplyWrite { reply: Reply::new(unique, sender) }
     }
 }
@@ -369,7 +378,8 @@ pub struct ReplyStatfs {
 }
 
 impl Reply for ReplyStatfs {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyStatfs {
+    fn new<F> (unique: u64, sender: F) -> ReplyStatfs
+            where F: FnOnce(&[&[u8]]) {
         ReplyStatfs { reply: Reply::new(unique, sender) }
     }
 }
@@ -407,7 +417,8 @@ pub struct ReplyCreate {
 }
 
 impl Reply for ReplyCreate {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyCreate {
+    fn new<F> (unique: u64, sender: F) -> ReplyCreate
+            where F: FnOnce(&[&[u8]]) {
         ReplyCreate { reply: Reply::new(unique, sender) }
     }
 }
@@ -444,7 +455,8 @@ pub struct ReplyLock {
 }
 
 impl Reply for ReplyLock {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyLock {
+    fn new<F> (unique: u64, sender: F) -> ReplyLock
+            where F: FnOnce(&[&[u8]]) {
         ReplyLock { reply: Reply::new(unique, sender) }
     }
 }
@@ -476,7 +488,8 @@ pub struct ReplyBmap {
 }
 
 impl Reply for ReplyBmap {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyBmap {
+    fn new<F> (unique: u64, sender: F) -> ReplyBmap
+            where F: FnOnce(&[&[u8]]) {
         ReplyBmap { reply: Reply::new(unique, sender) }
     }
 }
@@ -505,7 +518,8 @@ pub struct ReplyDirectory {
 }
 
 impl Reply for ReplyDirectory {
-    fn new (unique: u64, sender: proc(&[&[u8]]):Send) -> ReplyDirectory {
+    fn new<F> (unique: u64, sender: F) -> ReplyDirectory
+            where F: FnOnce(&[&[u8]]) {
         ReplyDirectory { reply: Reply::new(unique, sender), size: 0, data: Vec::with_capacity(4096) }
     }
 }
@@ -597,7 +611,7 @@ mod test {
     #[test]
     fn reply_raw () {
         let data = Data { a: 0x12, b: 0x34, c: 0x5678 };
-        let reply: ReplyRaw<Data> = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyRaw<Data> = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
                 [0x12, 0x34, 0x78, 0x56].as_slice(),
@@ -608,7 +622,7 @@ mod test {
 
     #[test]
     fn reply_error () {
-        let reply: ReplyRaw<Data> = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyRaw<Data> = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x10, 0x00, 0x00, 0x00, 0xbe, 0xff, 0xff, 0xff,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
             ].as_slice());
@@ -618,7 +632,7 @@ mod test {
 
     #[test]
     fn reply_empty () {
-        let reply: ReplyEmpty = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyEmpty = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
             ].as_slice());
@@ -628,7 +642,7 @@ mod test {
 
     #[test]
     fn reply_data () {
-        let reply: ReplyData = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyData = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
                 [0xde, 0xad, 0xbe, 0xef].as_slice(),
@@ -639,7 +653,7 @@ mod test {
 
     #[test]
     fn reply_entry () {
-        let reply: ReplyEntry = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyEntry = Reply::new(0xdeadbeef, |bytes| {
             if cfg!(target_os = "macos") {
                 assert_eq!(bytes, [
                     [0x98, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
@@ -675,7 +689,7 @@ mod test {
 
     #[test]
     fn reply_attr () {
-        let reply: ReplyAttr = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyAttr = Reply::new(0xdeadbeef, |bytes| {
             if cfg!(target_os = "macos") {
                 assert_eq!(bytes, [
                     [0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
@@ -708,7 +722,7 @@ mod test {
     #[test]
     #[cfg(target_os = "macos")]
     fn reply_xtimes () {
-        let reply: ReplyXTimes = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyXTimes = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
                 [0x34, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0x34, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -721,7 +735,7 @@ mod test {
 
     #[test]
     fn reply_open () {
-        let reply: ReplyOpen = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyOpen = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
                 [0x22, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0x33, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00].as_slice(),
@@ -732,7 +746,7 @@ mod test {
 
     #[test]
     fn reply_write () {
-        let reply: ReplyWrite = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyWrite = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
                 [0x22, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00].as_slice(),
@@ -743,7 +757,7 @@ mod test {
 
     #[test]
     fn reply_statfs () {
-        let reply: ReplyStatfs = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyStatfs = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
                 [0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0x22, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -758,7 +772,7 @@ mod test {
 
     #[test]
     fn reply_create () {
-        let reply: ReplyCreate = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyCreate = Reply::new(0xdeadbeef, |bytes| {
             if cfg!(target_os = "macos") {
                 assert_eq!(bytes, [
                     [0xa8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
@@ -796,7 +810,7 @@ mod test {
 
     #[test]
     fn reply_lock () {
-        let reply: ReplyLock = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyLock = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x28, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
                 [0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0x22, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -808,7 +822,7 @@ mod test {
 
     #[test]
     fn reply_bmap () {
-        let reply: ReplyBmap = Reply::new(0xdeadbeef, proc(bytes) {
+        let reply: ReplyBmap = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
                 [0x34, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00].as_slice(),
@@ -819,7 +833,7 @@ mod test {
 
     #[test]
     fn reply_directory () {
-        let mut reply: ReplyDirectory = Reply::new(0xdeadbeef, proc(bytes) {
+        let mut reply: ReplyDirectory = Reply::new(0xdeadbeef, |bytes| {
             assert_eq!(bytes, [
                 [0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0xef, 0xbe, 0xad, 0xde, 0x00, 0x00, 0x00, 0x00].as_slice(),
                 [0xbb, 0xaa, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
